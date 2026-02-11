@@ -13,7 +13,7 @@ cp scripts/toggl/env.template scripts/toggl/env
 
 | Key | Action |
 |-----|--------|
-| `Prefix + p` | タイマー開始（セッション名を入力） |
+| `Prefix + p` | タイマー開始（プロジェクト選択 → セッション名入力） |
 | `Prefix + P` | タイマー停止 |
 | `Prefix + o` | API同期 |
 
@@ -25,3 +25,4 @@ cp scripts/toggl/env.template scripts/toggl/env
 
 - curl
 - jq
+- fzf

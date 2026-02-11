@@ -8,6 +8,7 @@ source $CURRENT_DIR/env
 TOGGL_API_URL="https://api.track.toggl.com/api/v9"
 AUTH="${TOGGL_API_TOKEN}:api_token"
 CACHE_FILE="$HOME/.toggl_session"
+PROJECTS_CACHE="$HOME/.local/share/tmux-toggl-projects"
 CHECK_DURATION_TIME=60
 
 # キャッシュ書き込み
@@ -23,6 +24,14 @@ TOGGL_STOPPED=${STOPPED}
 TOGGL_STOPPED_TIME=${STOPPED_TIME}
 TOGGL_LAST_CHECK=$(date +%s)
 EOF
+}
+
+# プロジェクト一覧をAPIから取得してキャッシュ更新
+sync_projects() {
+	local WORKSPACE_ID=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/me" | jq -r '.default_workspace_id')
+	mkdir -p "$(dirname "$PROJECTS_CACHE")"
+	curl -s -u "$AUTH" "${TOGGL_API_URL}/workspaces/${WORKSPACE_ID}/projects?active=true" \
+		| jq -r '.[].name' | sort > "$PROJECTS_CACHE"
 }
 
 # APIから現在のエントリーを取得してキャッシュ更新
@@ -56,7 +65,7 @@ load_cache() {
 }
 
 start_session() {
-	tmux command-prompt -p "TOGGL:" "run-shell '$CURRENT_DIR/session-init.sh \"%%\"'"
+	tmux display-popup -E -w 60% -h 40% "$CURRENT_DIR/project-select.sh"
 }
 
 stop_session_confirm() {
@@ -124,6 +133,7 @@ elif [ "$COMMAND" = "stop_ok" ]; then
 	stop_session
 elif [ "$COMMAND" = "sync" ]; then
 	sync_current
+	sync_projects
 	tmux display-message "Toggl synced."
 	tmux refresh-client -S
 elif [ "$COMMAND" = "time" ]; then

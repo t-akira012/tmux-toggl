@@ -9,6 +9,7 @@ tmux-toggl/
 │   ├── helpers.sh             # tmuxオプション操作ヘルパー
 │   └── toggl/
 │       ├── main.sh            # コマンドハンドラ
+│       ├── project-select.sh  # プロジェクト選択UI（tmux popup + fzf）
 │       ├── session-init.sh    # セッション開始処理
 │       ├── env                # TOGGL_API_TOKEN（git管理外）
 │       └── env.template       # envのテンプレート
@@ -57,7 +58,7 @@ APIが返す `start` フィールドはUTC。`date -j -u -f` でUnix秒に変換
 
 | コマンド | API呼び出し | 動作 |
 |----------|-------------|------|
-| `start` | なし | tmuxプロンプト → `session-init.sh` |
+| `start` | なし | tmux popup → `project-select.sh` → `session-init.sh` |
 | `stop` | なし | 確認プロンプト → `stop_ok` |
 | `stop_ok` | PATCH | API停止、キャッシュに `TOGGL_STOPPED=1` を記録 |
 | `sync` | GET current | 強制API同期 |
@@ -94,6 +95,10 @@ APIが返す `start` フィールドはUTC。`date -j -u -f` でUnix秒に変換
 | `#{pomo_name}` | `main.sh name` |
 | `#{pomo_color}` | `main.sh color` |
 
+### project-select.sh
+
+`tmux display-popup -E -w 60% -h 40%` で起動される。API からプロジェクト一覧を取得し、fzf で選択後、description を入力させ、`session-init.sh` を呼び出す。「(なし)」を選択するとプロジェクト未指定で開始できる。
+
 ### session-init.sh
 
-`tmux command-prompt` 経由で呼ばれる。API POST でTogglタイマーを開始し、キャッシュを書き込み、`status-interval` を1秒に設定する。
+`project-select.sh` 経由で呼ばれる。API POST でTogglタイマーを開始し、キャッシュを書き込み、`status-interval` を1秒に設定する。
