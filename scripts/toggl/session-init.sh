@@ -21,9 +21,16 @@ PROJECT_ID=""
 PROJECT_NAME=""
 if [[ "$INPUT" =~ @([^ ]+) ]]; then
 	PROJECT_NAME="${BASH_REMATCH[1]}"
-	# プロジェクト名からproject_idを取得
-	PROJECT_ID=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/workspaces/${WORKSPACE_ID}/projects" \
-		| jq -r --arg name "$PROJECT_NAME" '.[] | select(.name == $name) | .id')
+	# プロジェクトキャッシュからproject_idを取得、なければAPIフォールバック
+	PROJECTS_CACHE="$HOME/.local/share/tmux-toggl-projects"
+	PROJECT_ID=""
+	if [ -f "$PROJECTS_CACHE" ]; then
+		PROJECT_ID=$(awk -F'\t' -v name="$PROJECT_NAME" '$2 == name { print $1 }' "$PROJECTS_CACHE")
+	fi
+	if [ -z "$PROJECT_ID" ]; then
+		PROJECT_ID=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/workspaces/${WORKSPACE_ID}/projects" \
+			| jq -r --arg name "$PROJECT_NAME" '.[] | select(.name == $name) | .id')
+	fi
 	if [ -z "$PROJECT_ID" ]; then
 		tmux display-message "TOGGL: project '${PROJECT_NAME}' not found."
 		exit 0

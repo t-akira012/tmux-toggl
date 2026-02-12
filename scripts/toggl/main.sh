@@ -28,12 +28,12 @@ TOGGL_LAST_CHECK=$(date +%s)
 EOF
 }
 
-# プロジェクト一覧をAPIから取得してキャッシュ更新
+# プロジェクト一覧をAPIから取得してキャッシュ更新（id\tname形式）
 sync_projects() {
 	local WORKSPACE_ID=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/me" | jq -r '.default_workspace_id')
 	mkdir -p "$(dirname "$PROJECTS_CACHE")"
 	curl -s -u "$AUTH" "${TOGGL_API_URL}/workspaces/${WORKSPACE_ID}/projects?active=true" \
-		| jq -r '.[].name' | sort > "$PROJECTS_CACHE"
+		| jq -r '.[] | "\(.id)\t\(.name)"' | sort -t$'\t' -k2 > "$PROJECTS_CACHE"
 }
 
 # APIから現在のエントリーを取得してキャッシュ更新
@@ -52,11 +52,11 @@ sync_current() {
 	local DESCRIPTION=$(echo "$CURRENT" | jq -r '.description')
 	local START_ISO=$(echo "$CURRENT" | jq -r '.start')
 	local START_UNIXTIME=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "${START_ISO%%+*}" +%s 2>/dev/null || date -u -d "$START_ISO" +%s)
-	# 既存キャッシュのプロジェクト名を保持
+	# プロジェクトキャッシュからproject_idでプロジェクト名を引く
+	local PROJECT_ID=$(echo "$CURRENT" | jq -r '.project_id')
 	local PROJECT=""
-	if [ -f "$CACHE_FILE" ]; then
-		source "$CACHE_FILE"
-		PROJECT="$TOGGL_PROJECT"
+	if [ "$PROJECT_ID" != "null" ] && [ -n "$PROJECT_ID" ] && [ -f "$PROJECTS_CACHE" ]; then
+		PROJECT=$(awk -F'\t' -v id="$PROJECT_ID" '$1 == id { print $2 }' "$PROJECTS_CACHE")
 	fi
 	write_cache "$DESCRIPTION" "$START_UNIXTIME" "0" "" "$PROJECT"
 }
@@ -155,8 +155,8 @@ elif [ "$COMMAND" = "stop" ]; then
 elif [ "$COMMAND" = "stop_ok" ]; then
 	stop_session
 elif [ "$COMMAND" = "sync" ]; then
-	sync_current
 	sync_projects
+	sync_current
 	tmux display-message "Toggl synced."
 	tmux refresh-client -S
 elif [ "$COMMAND" = "time" ]; then

@@ -17,13 +17,13 @@ source "$CACHE_FILE"
 
 # キャッシュがあればそれを使い、なければAPIから取得
 if [ -f "$PROJECTS_CACHE" ]; then
-	PROJECTS=$(cat "$PROJECTS_CACHE")
+	PROJECTS=$(cut -f2 "$PROJECTS_CACHE")
 else
 	WORKSPACE_ID=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/me" | jq -r '.default_workspace_id')
-	PROJECTS=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/workspaces/${WORKSPACE_ID}/projects?active=true" \
-		| jq -r '.[].name' | sort)
 	mkdir -p "$(dirname "$PROJECTS_CACHE")"
-	echo "$PROJECTS" > "$PROJECTS_CACHE"
+	curl -s -u "$AUTH" "${TOGGL_API_URL}/workspaces/${WORKSPACE_ID}/projects?active=true" \
+		| jq -r '.[] | "\(.id)\t\(.name)"' | sort -t$'\t' -k2 > "$PROJECTS_CACHE"
+	PROJECTS=$(cut -f2 "$PROJECTS_CACHE")
 fi
 
 # fzf でプロジェクト選択（「(なし)」を先頭に追加）
@@ -41,25 +41,7 @@ if [ -z "$DESCRIPTION" ]; then
 	DESCRIPTION="$TOGGL_DESCRIPTION"
 fi
 
-# プロジェクト解決
-PROJECT_ID=""
-PROJECT_NAME=""
-if [ "$SELECTED" != "(なし)" ]; then
-	PROJECT_NAME="$SELECTED"
-fi
-
-WORKSPACE_ID=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/me" | jq -r '.default_workspace_id')
-
-if [ -n "$PROJECT_NAME" ]; then
-	PROJECT_ID=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/workspaces/${WORKSPACE_ID}/projects" \
-		| jq -r --arg name "$PROJECT_NAME" '.[] | select(.name == $name) | .id')
-	if [ -z "$PROJECT_ID" ]; then
-		tmux display-message "TOGGL: project '${PROJECT_NAME}' not found."
-		exit 0
-	fi
-fi
-
-# 現在のエントリーを取得
+# 現在のエントリーを取得（workspace_idもここから取得）
 CURRENT=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/me/time_entries/current")
 if [ "$CURRENT" = "null" ] || [ -z "$CURRENT" ]; then
 	tmux display-message "TOGGL: no running entry."
@@ -67,7 +49,24 @@ if [ "$CURRENT" = "null" ] || [ -z "$CURRENT" ]; then
 fi
 
 TIME_ENTRY_ID=$(echo "$CURRENT" | jq -r '.id')
+WORKSPACE_ID=$(echo "$CURRENT" | jq -r '.workspace_id')
 START=$(echo "$CURRENT" | jq -r '.start')
+
+# プロジェクト解決
+PROJECT_ID=""
+PROJECT_NAME=""
+if [ "$SELECTED" != "(なし)" ]; then
+	PROJECT_NAME="$SELECTED"
+	PROJECT_ID=$(awk -F'\t' -v name="$PROJECT_NAME" '$2 == name { print $1 }' "$PROJECTS_CACHE")
+	if [ -z "$PROJECT_ID" ]; then
+		PROJECT_ID=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/workspaces/${WORKSPACE_ID}/projects" \
+			| jq -r --arg name "$PROJECT_NAME" '.[] | select(.name == $name) | .id')
+	fi
+	if [ -z "$PROJECT_ID" ]; then
+		tmux display-message "TOGGL: project '${PROJECT_NAME}' not found."
+		exit 0
+	fi
+fi
 
 # project_idがあればJSONに含める
 if [ -n "$PROJECT_ID" ]; then

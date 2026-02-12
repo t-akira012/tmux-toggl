@@ -9,13 +9,13 @@ PROJECTS_CACHE="$HOME/.local/share/tmux-toggl-projects"
 
 # キャッシュがあればそれを使い、なければAPIから取得
 if [ -f "$PROJECTS_CACHE" ]; then
-	PROJECTS=$(cat "$PROJECTS_CACHE")
+	PROJECTS=$(cut -f2 "$PROJECTS_CACHE")
 else
 	WORKSPACE_ID=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/me" | jq -r '.default_workspace_id')
-	PROJECTS=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/workspaces/${WORKSPACE_ID}/projects?active=true" \
-		| jq -r '.[].name' | sort)
 	mkdir -p "$(dirname "$PROJECTS_CACHE")"
-	echo "$PROJECTS" > "$PROJECTS_CACHE"
+	curl -s -u "$AUTH" "${TOGGL_API_URL}/workspaces/${WORKSPACE_ID}/projects?active=true" \
+		| jq -r '.[] | "\(.id)\t\(.name)"' | sort -t$'\t' -k2 > "$PROJECTS_CACHE"
+	PROJECTS=$(cut -f2 "$PROJECTS_CACHE")
 fi
 
 # fzf でプロジェクト選択（「(なし)」を先頭に追加）
