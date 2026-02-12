@@ -17,8 +17,10 @@ write_cache() {
 	local START_UNIXTIME="$2"
 	local STOPPED="${3:-0}"
 	local STOPPED_TIME="${4:-}"
+	local PROJECT="${5:-}"
 	cat <<EOF > "$CACHE_FILE"
 TOGGL_DESCRIPTION="${DESCRIPTION}"
+TOGGL_PROJECT="${PROJECT}"
 TOGGL_START_UNIXTIME=${START_UNIXTIME}
 TOGGL_STOPPED=${STOPPED}
 TOGGL_STOPPED_TIME=${STOPPED_TIME}
@@ -43,7 +45,13 @@ sync_current() {
 	local DESCRIPTION=$(echo "$CURRENT" | jq -r '.description')
 	local START_ISO=$(echo "$CURRENT" | jq -r '.start')
 	local START_UNIXTIME=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "${START_ISO%%+*}" +%s 2>/dev/null || date -u -d "$START_ISO" +%s)
-	write_cache "$DESCRIPTION" "$START_UNIXTIME" "0"
+	# 既存キャッシュのプロジェクト名を保持
+	local PROJECT=""
+	if [ -f "$CACHE_FILE" ]; then
+		source "$CACHE_FILE"
+		PROJECT="$TOGGL_PROJECT"
+	fi
+	write_cache "$DESCRIPTION" "$START_UNIXTIME" "0" "" "$PROJECT"
 }
 
 # キャッシュ読み込み（CHECK_DURATION_TIME経過時のみAPI再同期）
@@ -89,7 +97,7 @@ stop_session() {
 
 	# 停止時刻と停止フラグを記録（キャッシュは消さない）
 	source "$CACHE_FILE"
-	write_cache "$DESCRIPTION" "$TOGGL_START_UNIXTIME" "1" "$(date +%H:%M)"
+	write_cache "$DESCRIPTION" "$TOGGL_START_UNIXTIME" "1" "$(date +%H:%M)" "$TOGGL_PROJECT"
 
 	tmux display-message "Toggl stopped."
 	tmux refresh-client -S
@@ -112,7 +120,11 @@ get_time() {
 
 get_name() {
 	load_cache || exit 0
-	echo "$TOGGL_DESCRIPTION"
+	if [ -n "$TOGGL_PROJECT" ]; then
+		echo "$TOGGL_DESCRIPTION @$TOGGL_PROJECT"
+	else
+		echo "$TOGGL_DESCRIPTION"
+	fi
 }
 
 get_color() {
