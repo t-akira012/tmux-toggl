@@ -7,6 +7,7 @@ use="toggl"
 tmux bind-key o run-shell "$CURRENT_DIR/scripts/${use}/main.sh sync"
 tmux bind-key p run-shell "$CURRENT_DIR/scripts/${use}/main.sh start"
 tmux bind-key P run-shell "$CURRENT_DIR/scripts/${use}/main.sh stop"
+tmux bind-key O run-shell "$CURRENT_DIR/scripts/${use}/main.sh overwrite"
 
 pomo_interpolation=(
 	"\#{pomo_status}"

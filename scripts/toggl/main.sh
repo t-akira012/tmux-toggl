@@ -76,6 +76,10 @@ start_session() {
 	tmux display-popup -E -w 60% -h 40% "$CURRENT_DIR/project-select.sh"
 }
 
+overwrite_session() {
+	tmux display-popup -E -w 60% -h 40% "$CURRENT_DIR/session-overwrite.sh"
+}
+
 stop_session_confirm() {
 	tmux command-prompt -p "Stop toggl session? (Enter or CTRL-C):" "run-shell '$CURRENT_DIR/main.sh stop_ok'"
 }
@@ -154,4 +158,6 @@ elif [ "$COMMAND" = "name" ]; then
 	get_name
 elif [ "$COMMAND" = "color" ]; then
 	get_color
+elif [ "$COMMAND" = "overwrite" ]; then
+	overwrite_session
 fi
