@@ -40,6 +40,13 @@ sync_projects() {
 sync_current() {
 	local CURRENT=$(curl -s -u "$AUTH" "${TOGGL_API_URL}/me/time_entries/current")
 	if [ "$CURRENT" = "null" ] || [ -z "$CURRENT" ]; then
+		# 外部から停止された場合、キャッシュを停止状態に更新
+		if [ -f "$CACHE_FILE" ]; then
+			source "$CACHE_FILE"
+			if [ "$TOGGL_STOPPED" != "1" ]; then
+				write_cache "$TOGGL_DESCRIPTION" "$TOGGL_START_UNIXTIME" "1" "$(date +%H:%M)" "$TOGGL_PROJECT"
+			fi
+		fi
 		return 1
 	fi
 	local DESCRIPTION=$(echo "$CURRENT" | jq -r '.description')
@@ -66,7 +73,7 @@ load_cache() {
 		fi
 		local NOW=$(date +%s)
 		if [ $((NOW - TOGGL_LAST_CHECK)) -ge $CHECK_DURATION_TIME ]; then
-			sync_current || return 1
+			sync_current || source "$CACHE_FILE"
 		fi
 	fi
 	source "$CACHE_FILE"
